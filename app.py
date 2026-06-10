@@ -5,9 +5,9 @@ def get_range_for_difficulty(difficulty: str):
     if difficulty == "Easy":
         return 1, 20
     if difficulty == "Normal":
-        return 1, 100
-    if difficulty == "Hard":
         return 1, 50
+    if difficulty == "Hard":
+        return 1, 100
     return 1, 100
 
 
@@ -30,33 +30,27 @@ def parse_guess(raw: str):
 
 
 def check_guess(guess, secret):
+    # FIX: AI + me swapped the hint messages — "Too High" now tells player to go
+    # LOWER (was backwards). Also removed dead str-compare branch once secret stayed int.
     if guess == secret:
         return "Win", "🎉 Correct!"
 
-    try:
-        if guess > secret:
-            return "Too High", "📈 Go HIGHER!"
-        else:
-            return "Too Low", "📉 Go LOWER!"
-    except TypeError:
-        g = str(guess)
-        if g == secret:
-            return "Win", "🎉 Correct!"
-        if g > secret:
-            return "Too High", "📈 Go HIGHER!"
-        return "Too Low", "📉 Go LOWER!"
+    if guess > secret:
+        return "Too High", "📉 Go LOWER!"
+    return "Too Low", "📈 Go HIGHER!"
 
 
 def update_score(current_score: int, outcome: str, attempt_number: int):
+    # FIX: AI flagged scoring glitches I confirmed — win formula used (attempt+1) which
+    # double-penalized (attempts already incremented), now (attempt-1) so fast win = max
+    # points. Removed even-attempt +5 reward on "Too High"; both wrong outcomes now -5.
     if outcome == "Win":
-        points = 100 - 10 * (attempt_number + 1)
+        points = 100 - 10 * (attempt_number - 1)
         if points < 10:
             points = 10
         return current_score + points
 
     if outcome == "Too High":
-        if attempt_number % 2 == 0:
-            return current_score + 5
         return current_score - 5
 
     if outcome == "Too Low":
@@ -78,9 +72,9 @@ difficulty = st.sidebar.selectbox(
 )
 
 attempt_limit_map = {
-    "Easy": 6,
-    "Normal": 8,
-    "Hard": 5,
+    "Easy": 8,
+    "Normal": 7,
+    "Hard": 6,
 }
 attempt_limit = attempt_limit_map[difficulty]
 
@@ -93,7 +87,9 @@ if "secret" not in st.session_state:
     st.session_state.secret = random.randint(low, high)
 
 if "attempts" not in st.session_state:
-    st.session_state.attempts = 1
+    # FIX: AI spotted init was 1 (New Game uses 0), so first load showed 7 left not 8.
+    # Set to 0 to match New Game; verified counter reads 8 on fresh load.
+    st.session_state.attempts = 0
 
 if "score" not in st.session_state:
     st.session_state.score = 0
@@ -107,7 +103,8 @@ if "history" not in st.session_state:
 st.subheader("Make a guess")
 
 st.info(
-    f"Guess a number between 1 and 100. "
+    # FIX: AI caught this was hardcoded "1 and 100" ignoring difficulty; now uses {low}/{high}.
+    f"Guess a number between {low} and {high}. "
     f"Attempts left: {attempt_limit - st.session_state.attempts}"
 )
 
@@ -133,7 +130,10 @@ with col3:
 
 if new_game:
     st.session_state.attempts = 0
-    st.session_state.secret = random.randint(1, 100)
+    # FIX: AI found New Game hardcoded randint(1, 100), ignoring difficulty range and making
+    # Easy/Normal unwinnable. Now randint(low, high). Also note: New Game does NOT reset score/
+    # status/history — I confirmed that bug against the repro log (kept stats on restart).
+    st.session_state.secret = random.randint(low, high)
     st.success("New game started.")
     st.rerun()
 
@@ -155,10 +155,9 @@ if submit:
     else:
         st.session_state.history.append(guess_int)
 
-        if st.session_state.attempts % 2 == 0:
-            secret = str(st.session_state.secret)
-        else:
-            secret = st.session_state.secret
+        # FIX: removed an AI-planted glitch that cast secret to str on even attempts
+        # (str-vs-int compare gave wrong hints). Secret stays int so check_guess is correct.
+        secret = st.session_state.secret
 
         outcome, message = check_guess(guess_int, secret)
 

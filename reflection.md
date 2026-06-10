@@ -7,6 +7,13 @@ Answer each question in 3 to 5 sentences. Be specific and honest about what actu
 - What did the game look like the first time you ran it?
 - List at least two concrete bugs you noticed at the start  
   (for example: "the hints were backwards").
+the hints were backwards
+new game did not work
+the score did not make sense
+the "attempts left" counter was behind by 1 guess
+the first time i load the app it removes an attempt, where it shoud be 8 like when i press new game, it starts at 7
+
+
 
 **Bug Reproduction Log**
 
@@ -14,23 +21,56 @@ Document at least 3 bugs you found. Add rows as needed.
 
 | Input | Expected Behavior | Actual Behavior | Console Output / Error |
 |-------|-------------------|-----------------|------------------------|
-| | | | |
-| | | | |
-| | | | |
+|guess was 67 |go higher hint | go lower hint| none|
+|new game |restart the game but kept stats| did not restart the game| |
+|used all number of attempts| showed corectly hopw many attempts i had left| when it said i had no attempts left and the game finished, it still said "attempts left : 1" | |
 
 ---
 
 ## 2. How did you use AI as a teammate?
 
 - Which AI tools did you use on this project (for example: ChatGPT, Gemini, Copilot)?
-- Give one example of an AI suggestion that was correct (including what the AI suggested and how you verified the result).
-- Give one example of an AI suggestion that was incorrect or misleading (including what the AI suggested and how you verified the result).
+
+Claude Code (Anthropic's CLI agent).
+
+**Correct AI suggestion**
+
+- What the AI suggested: When I asked it to scan `app.py`, it flagged several real bugs at
+  once — the difficulty settings being inconsistent (Normal had a wider range than Hard),
+  non-number guesses still burning an attempt, the secret number always being generated in
+  the 1–100 range even on Easy/Normal (so those games could be unwinnable), and multiple
+  scoring glitches (a wrong "Too High" guess *adding* +5 points on even attempts, "Too High"
+  and "Too Low" giving different penalties, and the win formula using `attempt_number + 1`
+  which double-penalized and meant a perfect first-guess game didn't award full points).
+- Correct or misleading: Correct. Each of these was a genuine bug, not a false alarm.
+- How I verified: I read the lines the AI pointed to and confirmed the logic myself — e.g.
+  on the scoring, I traced that `attempts` is incremented at line 137 *before* `update_score`
+  is called, so the `+ 1` really did double-count. After the fixes I played the game: New
+  Game on Easy now produces secrets inside 1–20, and a fast win gives more points than a
+  slow one. The `# FIX:` comments in `app.py` mark each confirmed change.
+
+**Incorrect / misleading AI suggestion**
+
+- What the AI suggested: When I first asked it to fix the backwards hints, it pointed at the
+  code that casts the secret to a string on even attempts (`secret = str(...)`) and tried to
+  remove that as the fix.
+- Correct or misleading: Misleading — incomplete. That string cast *was* a real bug, but it
+  only corrupted hints on even attempts; it did not explain why hints were wrong on **odd**
+  attempts too. So accepting that fix alone would have left the game still giving wrong hints
+  half the time.
+- How I verified: I told the AI the hints were wrong on *every* guess, not just even ones,
+  and pointed it at line 37. On re-checking, the real root cause was that the messages
+  themselves were swapped — `guess > secret` ("Too High") returned "Go HIGHER!" instead of
+  "Go LOWER!". I confirmed by playing the game after the message swap: guessing high now
+  correctly says go lower on every attempt. The string-cast removal was still applied
+  afterward as a separate, second fix.
 
 ---
 
 ## 3. Debugging and testing your fixes
 
 - How did you decide whether a bug was really fixed?
+the biggest bug fix was the backwards hint, and i decided it was fixed when i tested the app and it gave the correct hints now
 - Describe at least one test you ran (manual or using pytest)  
   and what it showed you about your code.
 - Did AI help you design or understand any tests? How?
