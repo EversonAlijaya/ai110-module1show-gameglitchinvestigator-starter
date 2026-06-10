@@ -35,63 +35,50 @@ Claude Code
 
 **Correct AI suggestion**
 
-- What the AI suggested: When I asked it to scan `app.py`, it flagged several real bugs at
-  once — the difficulty settings being inconsistent (Normal had a wider range than Hard),
-  non-number guesses still burning an attempt, the secret number always being generated in
-  the 1–100 range even on Easy/Normal (so those games could be unwinnable), and multiple
-  scoring glitches (a wrong "Too High" guess *adding* +5 points on even attempts, "Too High"
-  and "Too Low" giving different penalties, and the win formula using `attempt_number + 1`
-  which double-penalized and meant a perfect first-guess game didn't award full points).
-- Correct or misleading: Correct. Each of these was a genuine bug, not a false alarm.
-- How I verified: I read the lines the AI pointed to and confirmed the logic myself — e.g.
-  on the scoring, I traced that `attempts` is incremented at line 137 *before* `update_score`
-  is called, so the `+ 1` really did double-count. After the fixes I played the game: New
-  Game on Easy now produces secrets inside 1–20, and a fast win gives more points than a
-  slow one. The `# FIX:` comments in `app.py` mark each confirmed change.
+- What the AI suggested: I asked it to look through the code and it found a bunch of real
+  bugs at once — the difficulty levels didn't make sense (Normal had a bigger range than
+  Hard), typing something that wasn't a number still used up a guess, the secret number was
+  always picked from 1 to 100 even on Easy, and the scoring was off (you could gain points
+  for a wrong guess, and winning fast didn't give you the most points).
+- Was it correct? Yes. These were all real bugs, not false alarms.
+- How I checked: I read the lines it pointed to and made sure they actually did what it said.
+  Then I played the game after fixing them — on Easy the secret now stays between 1 and 20,
+  and winning quickly gives more points than winning slowly.
 
 **Incorrect / misleading AI suggestion**
 
-- What the AI suggested: When I first asked it to fix the backwards hints, it pointed at the
-  code that casts the secret to a string on even attempts (`secret = str(...)`) and tried to
-  remove that as the fix.
-- Correct or misleading: Misleading — incomplete. That string cast *was* a real bug, but it
-  only corrupted hints on even attempts; it did not explain why hints were wrong on **odd**
-  attempts too. So accepting that fix alone would have left the game still giving wrong hints
-  half the time.
-- How I verified: I told the AI the hints were wrong on *every* guess, not just even ones,
-  and pointed it at line 37. On re-checking, the real root cause was that the messages
-  themselves were swapped — `guess > secret` ("Too High") returned "Go HIGHER!" instead of
-  "Go LOWER!". I confirmed by playing the game after the message swap: guessing high now
-  correctly says go lower on every attempt. The string-cast removal was still applied
-  afterward as a separate, second fix.
+- What the AI suggested: When I first told it to fix the backwards hints, it pointed at a
+  different piece of code (where the secret got turned into text on some guesses) and tried
+  to fix that instead.
+- Was it correct? No, it was misleading. That was a real bug too, but it only messed up the
+  hints on some of the guesses, not all of them. If I had stopped there the hints would still
+  have been wrong half the time.
+- How I checked: I told the AI the hints were wrong on *every* guess and pointed it at the
+  exact line. It turned out the real problem was that the "go higher" and "go lower" messages
+  were simply swapped. I confirmed it by playing the game after the swap — guessing too high
+  now correctly says go lower every time.
 
 ---
 
 ## 3. Debugging and testing your fixes
 
 - How did you decide whether a bug was really fixed?
-The biggest bug fix was the backwards hint. I decided it was fixed in two ways: first I
-refactored the core logic (`check_guess`, `parse_guess`, `get_range_for_difficulty`,
-`update_score`) out of `app.py` into `logic_utils.py` so it could be tested without
-Streamlit, then I wrote pytest cases that pin the behavior. A bug only counted as fixed
-once the matching test passed AND the live game behaved correctly when I played it.
+For the backwards hint, I checked it two ways. First I moved the main game logic into its own
+file (`logic_utils.py`) so I could test it on its own, then I wrote small tests for it. I only
+called a bug fixed once the test passed AND the game actually worked right when I played it.
 
 - Describe at least one test you ran (manual or using pytest)  
   and what it showed you about your code.
-I ran `pytest` from the repo root. The key test for the hint bug is
-`test_too_high_message_says_go_lower`: it calls `check_guess(60, 50)` and asserts the
-outcome is `"Too High"` AND that the message contains `"LOWER"`. This mattered because the
-starter's outcome label was already "Too High" — the bug was only in the *message text*
-("Go HIGHER!"), so a test that checked the outcome alone would have passed even with the
-bug. Adding `"LOWER" in message` is what actually catches the regression.
+I ran `pytest`. The main test for the hint bug checks `check_guess(60, 50)` and makes sure it
+says "Too High" AND that the message tells the player to go LOWER. This was important because
+the game was already saying "Too High" correctly — the only wrong part was the message text,
+so just checking "Too High" wouldn't have caught it. Checking the actual message is what
+catches the bug.
 
-I also fixed a separate bug where a non-number guess (e.g. "abc") still burned an attempt,
-because `app.py` incremented the attempt counter *before* checking if the input parsed. I
-moved the increment so it only runs on a valid guess. The attempt counter itself lives in
-Streamlit session state (UI), but the rule behind it is `parse_guess`'s ok-flag, so I tested
-that directly: `test_non_number_guess_is_not_ok` and `test_empty_guess_is_not_ok` confirm
-bad input returns `ok=False` (no attempt spent), and `test_valid_guess_is_ok` confirms a real
-number returns `ok=True` (the only case that spends an attempt). Final run:
+I also fixed a bug where typing something that wasn't a number still used up a guess. The
+game added to the guess count before checking if the input was valid, so I moved that so it
+only counts real guesses. I tested the `parse_guess` part: bad input like "abc" or an empty
+box comes back as "not ok" (no guess used), and a real number comes back as "ok". Final run:
 
 ```
 tests/test_game_logic.py::test_winning_guess PASSED
@@ -105,38 +92,38 @@ tests/test_game_logic.py::test_valid_guess_is_ok PASSED
 ============================== 8 passed in 0.01s ===============================
 ```
 
-The biggest one I caught from playing the game (not from a test) was that New Game gave a
-new secret but wouldn't let me guess — it kept saying "You already won. Start a new game to
-play again." The cause was pure UI/state: New Game reset `attempts` and `secret` but never
-reset `status`, so after a win `status` stayed `"won"` and the page hit `st.stop()` before
-the guess form. I fixed it by resetting the full game state on New Game (`status`, `score`,
-`history` too). Since this is Streamlit session-state behavior and not pure logic, pytest
-can't cover it, so I verified it by playing the live game with `streamlit run app.py`:
-after winning, clicking New Game now lets me guess again with a fresh score and history.
+The bug I caught from just playing (not from a test) was that New Game gave me a new number
+but wouldn't let me guess — it kept saying "You already won." It turned out New Game reset the
+number and the attempts but forgot to reset the "won" status, so the game still thought I'd
+already won. I fixed it by resetting everything on New Game (status, score, and history too).
+I checked this by playing the game: after a win, New Game now lets me guess again with a fresh
+score.
 
-Another play-test bug was that I had to press "Submit Guess" twice before the screen
-updated — the Developer Debug panel and the "Attempts left" counter showed the previous
-guess's values on the first press. This was a Streamlit ordering issue: the script runs
-top-to-bottom on every rerun, and both the counter and the debug panel render NEAR THE TOP,
-before the submit handler (lower down) updates `attempts`/`history`/`score`. So they always
-displayed the state from before the click. The AI helped me understand that the real fix
-wasn't to move widgets around (that only fixes one symptom) but to store the guess result in
-session state and call `st.rerun()` at the end of the handler, so the whole page re-renders
-once with the new state in a single press. I verified by playing: one click now updates the
-counter, the debug panel, and the hint together.
+There was also a bug where I had to press Submit twice before the screen updated. The reason
+is that Streamlit re-runs the whole file from the top every time you click something, and the
+parts that show the score and attempts were near the top of the file, so they drew the old
+numbers before the guess was actually counted lower down. The fix was to update everything
+and then tell the page to re-run once, so it redraws with the new numbers in one press. I
+checked it by playing — now one click updates everything together.
 
 - Did AI help you design or understand any tests? How?
-Yes. The AI pointed out that the three starter tests assumed `check_guess` returned a bare
-string, while the real function returns a `(outcome, message)` tuple — so they had to be
-updated to unpack the tuple, and it explained *why* an outcome-only assertion wouldn't have
-caught the hint bug. It then generated the two message-direction tests that target exactly
-the bug I fixed.
+Yes. The AI noticed the starter tests expected `check_guess` to return just a word, but it
+actually returns a word plus a message, so the tests had to be updated. It also explained why
+only checking the word wouldn't catch the hint bug, and it wrote the extra tests that check
+the message itself.
 
 ---
 
 ## 4. What did you learn about Streamlit and state?
 
 - How would you explain Streamlit "reruns" and session state to a friend who has never used Streamlit?
+The thing that surprised me is that Streamlit runs my whole file again from the top every
+time I click a button or type something. It's like the page reloads each time. Because of
+that, normal variables get wiped every time, so anything I want the game to remember between
+clicks — like the secret number, the score, and how many guesses I've used — has to be saved
+in something called session state, which is the one thing that sticks around between reloads.
+The two-press bug taught me that the order of my code matters too, because if I show a number
+near the top but only change it lower down, the screen already showed the old number first.
 
 ---
 
@@ -144,5 +131,18 @@ the bug I fixed.
 
 - What is one habit or strategy from this project that you want to reuse in future labs or projects?
   - This could be a testing habit, a prompting strategy, or a way you used Git.
+Definitely commits — pushing to GitHub after every bug fix instead of after a bunch of them
+at once. Doing one commit per fix made it really clear what each change was for, and if a fix
+broke something I'd know exactly where to look. I also want to keep writing a small test for
+each bug, because a passing test is harder to fool myself with than just clicking around.
+
 - What is one thing you would do differently next time you work with AI on a coding task?
+I'd be more specific when I ask for help. When I just said "fix the backwards hint," the AI
+went after the wrong thing first. Once I told it exactly what I was seeing and where, it found
+the real bug fast. So next time I'll describe the exact problem and point to the spot before
+asking for a fix.
+
 - In one or two sentences, describe how this project changed the way you think about AI generated code.
+I learned that AI code can look totally finished and still be wrong on the inside. Now I treat
+it as a first draft I have to check by reading it, testing it, and actually playing the game
+before I trust it.
