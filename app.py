@@ -53,6 +53,14 @@ if "status" not in st.session_state:
 if "history" not in st.session_state:
     st.session_state.history = []
 
+# FIX: the guess result (hint / win / loss message) is stored in session_state instead of
+# being printed inline inside the submit handler. The handler updates state then calls
+# st.rerun(), so the whole page re-renders top-to-bottom with the NEW state — this is what
+# fixes both the "Attempts left" counter and the Developer Debug panel lagging one press
+# behind. Storing the message lets it survive that rerun and still be shown to the player.
+if "last_message" not in st.session_state:
+    st.session_state.last_message = None  # (kind, text) e.g. ("warning", "📈 Go HIGHER!")
+
 st.subheader("Make a guess")
 
 st.info(
@@ -91,14 +99,32 @@ if new_game:
     st.session_state.status = "playing"
     st.session_state.score = 0
     st.session_state.history = []
-    st.success("New game started.")
+    st.session_state.last_message = ("success", "New game started.")
     st.rerun()
 
+# Render the result of the last action (survives the rerun in the submit handler). This runs
+# BEFORE the status-stop block so a win/loss summary is shown even once the game has ended.
+def _render_last_message():
+    last = st.session_state.last_message
+    if not last:
+        return
+    kind, text = last
+    if kind == "warning":
+        st.warning(text)
+    elif kind == "error":
+        st.error(text)
+    elif kind == "win":
+        st.balloons()
+        st.success(text)
+    elif kind == "success":
+        st.success(text)
+
 if st.session_state.status != "playing":
+    _render_last_message()
     if st.session_state.status == "won":
-        st.success("You already won. Start a new game to play again.")
+        st.info("Start a new game to play again.")
     else:
-        st.error("Game over. Start a new game to try again.")
+        st.info("Start a new game to try again.")
     st.stop()
 
 if submit:
@@ -108,7 +134,7 @@ if submit:
         # FIX: a non-number guess no longer burns an attempt. The increment moved into
         # the valid-guess branch below, so only real guesses count against the limit.
         st.session_state.history.append(raw_guess)
-        st.error(err)
+        st.session_state.last_message = ("error", err)
     else:
         st.session_state.attempts += 1
         st.session_state.history.append(guess_int)
@@ -119,9 +145,6 @@ if submit:
 
         outcome, message = check_guess(guess_int, secret)
 
-        if show_hint:
-            st.warning(message)
-
         st.session_state.score = update_score(
             current_score=st.session_state.score,
             outcome=outcome,
@@ -129,20 +152,31 @@ if submit:
         )
 
         if outcome == "Win":
-            st.balloons()
             st.session_state.status = "won"
-            st.success(
+            st.session_state.last_message = (
+                "win",
                 f"You won! The secret was {st.session_state.secret}. "
-                f"Final score: {st.session_state.score}"
+                f"Final score: {st.session_state.score}",
             )
+        elif st.session_state.attempts >= attempt_limit:
+            st.session_state.status = "lost"
+            st.session_state.last_message = (
+                "error",
+                f"Out of attempts! "
+                f"The secret was {st.session_state.secret}. "
+                f"Score: {st.session_state.score}",
+            )
+        elif show_hint:
+            st.session_state.last_message = ("warning", message)
         else:
-            if st.session_state.attempts >= attempt_limit:
-                st.session_state.status = "lost"
-                st.error(
-                    f"Out of attempts! "
-                    f"The secret was {st.session_state.secret}. "
-                    f"Score: {st.session_state.score}"
-                )
+            st.session_state.last_message = None
+
+    # FIX: rerun so the page re-renders with the updated attempts/score/history. Without this
+    # the counter and debug panel showed pre-guess values until a second press.
+    st.rerun()
+
+# Still-playing case: show the hint / error from the last guess.
+_render_last_message()
 
 st.divider()
 st.caption("Built by an AI that claims this code is production-ready.")

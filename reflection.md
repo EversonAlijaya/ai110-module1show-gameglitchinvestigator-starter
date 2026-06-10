@@ -114,6 +114,17 @@ the guess form. I fixed it by resetting the full game state on New Game (`status
 can't cover it, so I verified it by playing the live game with `streamlit run app.py`:
 after winning, clicking New Game now lets me guess again with a fresh score and history.
 
+Another play-test bug was that I had to press "Submit Guess" twice before the screen
+updated — the Developer Debug panel and the "Attempts left" counter showed the previous
+guess's values on the first press. This was a Streamlit ordering issue: the script runs
+top-to-bottom on every rerun, and both the counter and the debug panel render NEAR THE TOP,
+before the submit handler (lower down) updates `attempts`/`history`/`score`. So they always
+displayed the state from before the click. The AI helped me understand that the real fix
+wasn't to move widgets around (that only fixes one symptom) but to store the guess result in
+session state and call `st.rerun()` at the end of the handler, so the whole page re-renders
+once with the new state in a single press. I verified by playing: one click now updates the
+counter, the debug panel, and the hint together.
+
 - Did AI help you design or understand any tests? How?
 Yes. The AI pointed out that the three starter tests assumed `check_guess` returned a bare
 string, while the real function returns a `(outcome, message)` tuple — so they had to be
