@@ -33,6 +33,34 @@ Document at least 3 bugs you found. Add rows as needed.
 
 Claude Code 
 
+**All the bugs the AI helped me find and fix**
+
+Here is the full list of bugs I fixed with the AI's help, with what was wrong and how I fixed
+each one:
+
+1. **Backwards hints.** The game told me to go HIGHER when I should go LOWER and vice versa.
+   The "go higher" and "go lower" messages were swapped. Fixed by swapping them back.
+2. **Scoring was broken.** A wrong guess could actually *add* points on some turns, the two
+   wrong outcomes gave different penalties, and winning fast didn't give the most points.
+   Fixed so both wrong guesses lose the same points and a faster win scores higher.
+3. **First load showed the wrong attempt count.** A fresh game showed 7 attempts left instead
+   of 8 because the counter started at 1 instead of 0. Fixed by starting it at 0.
+4. **Difficulty range was ignored.** The secret was always picked from 1–100 even on Easy, so
+   Easy/Normal could be impossible. Fixed so the secret uses the difficulty's real range.
+5. **The "between 1 and 100" text never changed.** It always said 1–100 no matter the
+   difficulty. Fixed so it shows the actual range.
+6. **Non-number guesses used up an attempt.** Typing "abc" still counted as a guess. Fixed so
+   only a valid number uses an attempt.
+7. **New Game wouldn't let me play.** After winning, New Game gave a new number but kept saying
+   "You already won" and blocked me. It wasn't resetting the win status, score, or history.
+   Fixed by resetting the whole game on New Game.
+8. **Had to press Submit twice.** The score and attempt counter showed the old values until a
+   second press, because Streamlit re-runs the file top to bottom and they were drawn before
+   the guess was counted. Fixed by updating everything and re-running the page once.
+
+The two examples below go into more detail on one suggestion that was correct and one that
+was misleading.
+
 **Correct AI suggestion**
 
 - What the AI suggested: I asked it to look through the code and it found a bunch of real
