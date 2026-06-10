@@ -105,6 +105,15 @@ tests/test_game_logic.py::test_valid_guess_is_ok PASSED
 ============================== 8 passed in 0.01s ===============================
 ```
 
+The biggest one I caught from playing the game (not from a test) was that New Game gave a
+new secret but wouldn't let me guess — it kept saying "You already won. Start a new game to
+play again." The cause was pure UI/state: New Game reset `attempts` and `secret` but never
+reset `status`, so after a win `status` stayed `"won"` and the page hit `st.stop()` before
+the guess form. I fixed it by resetting the full game state on New Game (`status`, `score`,
+`history` too). Since this is Streamlit session-state behavior and not pure logic, pytest
+can't cover it, so I verified it by playing the live game with `streamlit run app.py`:
+after winning, clicking New Game now lets me guess again with a fresh score and history.
+
 - Did AI help you design or understand any tests? How?
 Yes. The AI pointed out that the three starter tests assumed `check_guess` returned a bare
 string, while the real function returns a `(outcome, message)` tuple — so they had to be

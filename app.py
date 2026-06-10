@@ -82,11 +82,15 @@ with col3:
     show_hint = st.checkbox("Show hint", value=True)
 
 if new_game:
+    # FIX: New Game now resets the FULL game state. The starter only reset attempts + secret,
+    # leaving status == "won"/"lost" — so after a win the "You already won" branch below ran
+    # st.stop() and locked the player out of a fresh game. Also reset score and history, and
+    # use randint(low, high) so the secret respects the difficulty range.
     st.session_state.attempts = 0
-    # FIX: AI found New Game hardcoded randint(1, 100), ignoring difficulty range and making
-    # Easy/Normal unwinnable. Now randint(low, high). Also note: New Game does NOT reset score/
-    # status/history — I confirmed that bug against the repro log (kept stats on restart).
     st.session_state.secret = random.randint(low, high)
+    st.session_state.status = "playing"
+    st.session_state.score = 0
+    st.session_state.history = []
     st.success("New game started.")
     st.rerun()
 
