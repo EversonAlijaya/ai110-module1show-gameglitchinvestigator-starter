@@ -98,14 +98,15 @@ if st.session_state.status != "playing":
     st.stop()
 
 if submit:
-    st.session_state.attempts += 1
-
     ok, guess_int, err = parse_guess(raw_guess)
 
     if not ok:
+        # FIX: a non-number guess no longer burns an attempt. The increment moved into
+        # the valid-guess branch below, so only real guesses count against the limit.
         st.session_state.history.append(raw_guess)
         st.error(err)
     else:
+        st.session_state.attempts += 1
         st.session_state.history.append(guess_int)
 
         # FIX: removed an AI-planted glitch that cast secret to str on even attempts

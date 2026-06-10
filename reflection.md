@@ -31,7 +31,7 @@ Document at least 3 bugs you found. Add rows as needed.
 
 - Which AI tools did you use on this project (for example: ChatGPT, Gemini, Copilot)?
 
-Claude Code (Anthropic's CLI agent).
+Claude Code 
 
 **Correct AI suggestion**
 
@@ -83,7 +83,15 @@ I ran `pytest` from the repo root. The key test for the hint bug is
 outcome is `"Too High"` AND that the message contains `"LOWER"`. This mattered because the
 starter's outcome label was already "Too High" — the bug was only in the *message text*
 ("Go HIGHER!"), so a test that checked the outcome alone would have passed even with the
-bug. Adding `"LOWER" in message` is what actually catches the regression. Final run:
+bug. Adding `"LOWER" in message` is what actually catches the regression.
+
+I also fixed a separate bug where a non-number guess (e.g. "abc") still burned an attempt,
+because `app.py` incremented the attempt counter *before* checking if the input parsed. I
+moved the increment so it only runs on a valid guess. The attempt counter itself lives in
+Streamlit session state (UI), but the rule behind it is `parse_guess`'s ok-flag, so I tested
+that directly: `test_non_number_guess_is_not_ok` and `test_empty_guess_is_not_ok` confirm
+bad input returns `ok=False` (no attempt spent), and `test_valid_guess_is_ok` confirms a real
+number returns `ok=True` (the only case that spends an attempt). Final run:
 
 ```
 tests/test_game_logic.py::test_winning_guess PASSED
@@ -91,7 +99,10 @@ tests/test_game_logic.py::test_guess_too_high PASSED
 tests/test_game_logic.py::test_guess_too_low PASSED
 tests/test_game_logic.py::test_too_high_message_says_go_lower PASSED
 tests/test_game_logic.py::test_too_low_message_says_go_higher PASSED
-============================== 5 passed in 0.01s ===============================
+tests/test_game_logic.py::test_non_number_guess_is_not_ok PASSED
+tests/test_game_logic.py::test_empty_guess_is_not_ok PASSED
+tests/test_game_logic.py::test_valid_guess_is_ok PASSED
+============================== 8 passed in 0.01s ===============================
 ```
 
 - Did AI help you design or understand any tests? How?
