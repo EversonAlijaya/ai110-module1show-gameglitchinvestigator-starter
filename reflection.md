@@ -70,10 +70,36 @@ Claude Code (Anthropic's CLI agent).
 ## 3. Debugging and testing your fixes
 
 - How did you decide whether a bug was really fixed?
-the biggest bug fix was the backwards hint, and i decided it was fixed when i tested the app and it gave the correct hints now
+The biggest bug fix was the backwards hint. I decided it was fixed in two ways: first I
+refactored the core logic (`check_guess`, `parse_guess`, `get_range_for_difficulty`,
+`update_score`) out of `app.py` into `logic_utils.py` so it could be tested without
+Streamlit, then I wrote pytest cases that pin the behavior. A bug only counted as fixed
+once the matching test passed AND the live game behaved correctly when I played it.
+
 - Describe at least one test you ran (manual or using pytest)  
   and what it showed you about your code.
+I ran `pytest` from the repo root. The key test for the hint bug is
+`test_too_high_message_says_go_lower`: it calls `check_guess(60, 50)` and asserts the
+outcome is `"Too High"` AND that the message contains `"LOWER"`. This mattered because the
+starter's outcome label was already "Too High" — the bug was only in the *message text*
+("Go HIGHER!"), so a test that checked the outcome alone would have passed even with the
+bug. Adding `"LOWER" in message` is what actually catches the regression. Final run:
+
+```
+tests/test_game_logic.py::test_winning_guess PASSED
+tests/test_game_logic.py::test_guess_too_high PASSED
+tests/test_game_logic.py::test_guess_too_low PASSED
+tests/test_game_logic.py::test_too_high_message_says_go_lower PASSED
+tests/test_game_logic.py::test_too_low_message_says_go_higher PASSED
+============================== 5 passed in 0.01s ===============================
+```
+
 - Did AI help you design or understand any tests? How?
+Yes. The AI pointed out that the three starter tests assumed `check_guess` returned a bare
+string, while the real function returns a `(outcome, message)` tuple — so they had to be
+updated to unpack the tuple, and it explained *why* an outcome-only assertion wouldn't have
+caught the hint bug. It then generated the two message-direction tests that target exactly
+the bug I fixed.
 
 ---
 

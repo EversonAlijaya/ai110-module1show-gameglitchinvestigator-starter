@@ -1,62 +1,15 @@
 import random
 import streamlit as st
 
-def get_range_for_difficulty(difficulty: str):
-    if difficulty == "Easy":
-        return 1, 20
-    if difficulty == "Normal":
-        return 1, 50
-    if difficulty == "Hard":
-        return 1, 100
-    return 1, 100
-
-
-def parse_guess(raw: str):
-    if raw is None:
-        return False, None, "Enter a guess."
-
-    if raw == "":
-        return False, None, "Enter a guess."
-
-    try:
-        if "." in raw:
-            value = int(float(raw))
-        else:
-            value = int(raw)
-    except Exception:
-        return False, None, "That is not a number."
-
-    return True, value, None
-
-
-def check_guess(guess, secret):
-    # FIX: AI + me swapped the hint messages — "Too High" now tells player to go
-    # LOWER (was backwards). Also removed dead str-compare branch once secret stayed int.
-    if guess == secret:
-        return "Win", "🎉 Correct!"
-
-    if guess > secret:
-        return "Too High", "📉 Go LOWER!"
-    return "Too Low", "📈 Go HIGHER!"
-
-
-def update_score(current_score: int, outcome: str, attempt_number: int):
-    # FIX: AI flagged scoring glitches I confirmed — win formula used (attempt+1) which
-    # double-penalized (attempts already incremented), now (attempt-1) so fast win = max
-    # points. Removed even-attempt +5 reward on "Too High"; both wrong outcomes now -5.
-    if outcome == "Win":
-        points = 100 - 10 * (attempt_number - 1)
-        if points < 10:
-            points = 10
-        return current_score + points
-
-    if outcome == "Too High":
-        return current_score - 5
-
-    if outcome == "Too Low":
-        return current_score - 5
-
-    return current_score
+# FIX: Refactored game logic (check_guess, parse_guess, get_range_for_difficulty,
+# update_score) into logic_utils.py using the AI assistant in agent mode. app.py now only
+# handles UI/state and imports the tested logic. Bug fixes live at the source in logic_utils.
+from logic_utils import (
+    get_range_for_difficulty,
+    parse_guess,
+    check_guess,
+    update_score,
+)
 
 st.set_page_config(page_title="Glitchy Guesser", page_icon="🎮")
 
